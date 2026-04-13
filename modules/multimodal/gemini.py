@@ -1,10 +1,14 @@
 import google.generativeai as genai
 from PIL import Image
 import pytesseract
+from dotenv import load_dotenv
 
-# 🔑 Set your API key here
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+# -----------------------------
+# LOAD ENV VARIABLES
+# -----------------------------
+load_dotenv()
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Try configuring Gemini
 try:
     genai.configure(api_key=GEMINI_API_KEY)

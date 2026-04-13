@@ -1,7 +1,6 @@
 import streamlit as st
 import threading
 from PIL import Image
-import pytesseract
 
 from modules.sentiment.sentiment import analyze_sentiment
 from modules.rag.loader import load_all_documents
@@ -10,6 +9,7 @@ from modules.routing.router import detect_intent, filter_docs_by_intent
 from modules.llm.ollama import generate
 from modules.multilingual import detect_language, translate_to_english, translate_from_english
 from modules.rag.updater import auto_update
+from modules.multimodal.gemini import analyze_image
 
 # -----------------------------
 # LOAD SYSTEM (CACHE)
@@ -23,12 +23,11 @@ def initialize_system():
 vector_store = initialize_system()
 
 # -----------------------------
-# START AUTO UPDATE (BACKGROUND)
+# START AUTO UPDATE (SAFE)
 # -----------------------------
-def start_updater():
+if "updater_started" not in st.session_state:
     threading.Thread(target=auto_update, args=(vector_store,), daemon=True).start()
-
-start_updater()
+    st.session_state["updater_started"] = True
 
 # -----------------------------
 # UI CONFIG
@@ -37,7 +36,20 @@ st.set_page_config(page_title="AI Chatbot", layout="wide")
 st.title("🤖 AI Multi-Domain Chatbot")
 
 # -----------------------------
-# IMAGE UPLOAD (MULTIMODAL)
+# SIDEBAR (RESEARCH SEARCH)
+# -----------------------------
+st.sidebar.header("📚 Research Explorer")
+
+search_query = st.sidebar.text_input("Search research papers")
+
+if search_query:
+    results = vector_store.search(search_query)
+    st.sidebar.write("Top Results:")
+    for r in results[:5]:
+        st.sidebar.markdown(f"- {r[:200]}...")
+
+# -----------------------------
+# IMAGE UPLOAD (REAL MULTIMODAL)
 # -----------------------------
 uploaded_file = st.file_uploader("📷 Upload an image", type=["png", "jpg", "jpeg"])
 
@@ -47,12 +59,14 @@ if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # OCR → extract text
-    extracted_text = pytesseract.image_to_string(image)
+    with st.spinner("Analyzing image using AI..."):
+        image_description = analyze_image(image)
 
-    st.write("📝 Extracted Text:", extracted_text)
+    st.success("✅ Image processed")
+    st.write("🧠 Image Understanding:")
+    st.write(image_description)
 
-    image_query = extracted_text.strip()
+    image_query = image_description.strip()
 
 # -----------------------------
 # SESSION STATE
@@ -72,7 +86,6 @@ for msg in st.session_state.messages:
 # -----------------------------
 user_input = st.chat_input("Ask something...")
 
-# Use image text if available
 final_input = image_query if image_query else user_input
 
 if final_input:
@@ -107,6 +120,14 @@ if final_input:
     context = "\n".join(filtered[:2])
 
     # -----------------------------
+    # FOLLOW-UP MEMORY (IMPORTANT)
+    # -----------------------------
+    history = "\n".join([
+        f"{m['role']}: {m['content']}"
+        for m in st.session_state.messages[-5:]
+    ])
+
+    # -----------------------------
     # INSTRUCTION
     # -----------------------------
     if intent == "medical":
@@ -127,6 +148,9 @@ if final_input:
     # -----------------------------
     prompt = f"""
 You are a professional AI assistant.
+
+Conversation History:
+{history}
 
 {instruction}
 
@@ -151,6 +175,11 @@ Answer:
 
     # Translate back
     response = translate_from_english(response_en, lang) if lang != "en" else response_en
+
+    # -----------------------------
+    # DISPLAY METADATA (BONUS)
+    # -----------------------------
+    st.caption(f"🌍 Language: {lang} | 😊 Sentiment: {sentiment}")
 
     # Store response
     st.session_state.messages.append({"role": "assistant", "content": response})
