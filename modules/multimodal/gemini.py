@@ -1,52 +1,83 @@
-import google.generativeai as genai
-from PIL import Image
-import pytesseract
+import os
+import requests
+import base64
+import io
 from dotenv import load_dotenv
+from PIL import Image
 
-# -----------------------------
-# LOAD ENV VARIABLES
-# -----------------------------
 load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# Try configuring Gemini
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    GEMINI_AVAILABLE = True
-except:
-    GEMINI_AVAILABLE = False
+print("🔥 USING GEMINI FILE:", __file__)
+
+
+# -----------------------------
+# GET AVAILABLE MODEL
+# -----------------------------
+def get_available_model():
+    url = f"https://generativelanguage.googleapis.com/v1/models?key={API_KEY}"
+    res = requests.get(url)
+
+    if res.status_code != 200:
+        print("❌ Failed to fetch models:", res.text)
+        return None
+
+    models = res.json().get("models", [])
+
+    for m in models:
+        name = m["name"]
+
+        # We need model that supports generateContent
+        if "generateContent" in m.get("supportedGenerationMethods", []):
+            print("✅ USING MODEL:", name)
+            return name.replace("models/", "")
+
+    return None
+
+
+MODEL_NAME = get_available_model()
 
 
 def analyze_image(image: Image.Image):
-    """
-    Hybrid image understanding:
-    1. Try Gemini
-    2. Fallback to OCR
-    """
-
-    # -----------------------------
-    # TRY GEMINI
-    # -----------------------------
-    if GEMINI_AVAILABLE:
-        try:
-            response = model.generate_content([
-                "Describe this image clearly for an AI assistant.",
-                image
-            ])
-            return response.text
-        except Exception as e:
-            print("⚠️ Gemini failed, switching to fallback:", e)
-
-    # -----------------------------
-    # FALLBACK (OCR)
-    # -----------------------------
     try:
-        text = pytesseract.image_to_string(image)
+        if not MODEL_NAME:
+            return "❌ No supported Gemini model found."
 
-        if text.strip():
-            return f"Extracted text from image: {text}"
+        # Convert RGBA → RGB
+        if image.mode != "RGB":
+            image = image.convert("RGB")
 
-        return "Image content could not be clearly understood."
-    except:
-        return "Failed to process image."
+        # Convert to base64
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        url = f"https://generativelanguage.googleapis.com/v1/models/{MODEL_NAME}:generateContent?key={API_KEY}"
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": "Describe this image clearly and in detail."},
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": img_base64
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = requests.post(url, json=payload)
+
+        if response.status_code != 200:
+            return f"❌ Gemini API error: {response.text}"
+
+        data = response.json()
+
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+
+    except Exception as e:
+        return f"❌ Gemini failed: {str(e)}"

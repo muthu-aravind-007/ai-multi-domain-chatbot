@@ -43,7 +43,7 @@ while True:
     results = vector_store.search(query_en)
     filtered = filter_docs_by_intent(results, intent)
 
-    context = "\n".join(filtered[:2])
+    context = "\n".join(filtered[:5])
 
     # -----------------------------
     # SMART INSTRUCTION
@@ -67,24 +67,23 @@ while True:
     # FINAL PROMPT
     # -----------------------------
     prompt = f"""
-You are a professional AI assistant.
+    You are a strict AI assistant.
 
-{instruction}
+    RULES:
+    - Answer ONLY the question
+    - No puzzles
+    - No extra examples
+    - No stories
+    - If unsure, say: "I don't know"
 
-STRICT RULES:
-- Answer ONLY the user's question
-- Do NOT add extra sections like exercises, stories, or examples
-- Keep the answer concise and relevant
-- Use ONLY the provided context
+    Context:
+    {context}
 
-Context:
-{context}
+    Question:
+    {query_en}
 
-Question:
-{query_en}
-
-Answer:
-"""
+    Answer:
+    """
 
     # -----------------------------
     # GENERATE RESPONSE
