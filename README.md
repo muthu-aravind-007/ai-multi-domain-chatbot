@@ -52,7 +52,6 @@ This project is an advanced AI chatbot capable of:
 * Streamlit
 * Python
 * Ollama (Mistral LLM)
-* FAISS (Vector DB)
 * Google Gemini API
 * NetworkX (Graph Visualization)
 

@@ -1,0 +1,12 @@
+streamlit
+Pillow
+pyvis
+networkx
+requests
+python-dotenv
+deep-translator
+langdetect
+sentence-transformers
+scikit-learn
+numpy
+vaderSentiment
