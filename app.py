@@ -11,7 +11,7 @@ from modules.sentiment.sentiment import analyze_sentiment
 from modules.rag.loader import load_all_documents
 from modules.rag.retriever import VectorStore
 from modules.routing.router import detect_intent, filter_docs_by_intent
-from modules.llm.ollama import generate
+from modules.llm.provider import generate
 from modules.multilingual.translate import detect_language, translate_to_english, translate_from_english
 from modules.rag.updater import auto_update
 from modules.multimodal.gemini import analyze_image
@@ -70,6 +70,14 @@ if search_query:
     results = vector_store.search(search_query)
     for r in results[:5]:
         st.sidebar.markdown(f"• {r[:120]}...")
+
+provider = st.sidebar.selectbox(
+    "LLM Provider",
+    [
+        "Ollama",
+        "Gemini"
+    ]
+)
 
 
 # ---------------- IMAGE INPUT ---------------- #
@@ -257,7 +265,10 @@ if final_input:
     {context}
     """
 
-        response_en = generate(prompt)
+        response_en = generate(
+            prompt,
+            provider.lower()
+        )
         response = translate_from_english(response_en, lang) if lang != "en" else response_en
 
         graph_data = None

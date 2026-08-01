@@ -1,9 +1,9 @@
 import subprocess
 
-def generate(prompt):
+def generate(prompt, model="mistral"):
     try:
         result = subprocess.run(
-            ["ollama", "run", "mistral"],
+            ["ollama","run",model],
             input=prompt,
             capture_output=True,
             text=True,
